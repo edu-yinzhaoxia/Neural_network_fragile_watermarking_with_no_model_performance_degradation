@@ -4,7 +4,6 @@ import importlib
 import argparse
 import math
 import torch.nn.functional as F
-from models import pgan
 from models import resnet
 from models.utils import train_generater,my_test,correct_cal,result_pre 
 import json
@@ -14,28 +13,12 @@ from torch.utils.data import Dataset
 from torchvision import datasets
 from torch.utils.data import DataLoader
 import torch.nn as nn
+from models import utils
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("Using {} device".format(device))
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Testing script')
-    parser.add_argument('-m', '--model', help="Model's name",
-                        type=str, dest="model", default="default")
-    parser.add_argument('-n', '--name', help="Dataset's name",
-                        type=str, dest="name", default="default")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Using {} device".format(device))
-    baseArgs, unknown = parser.parse_known_args()
-    #target_model = get_Model(baseArgs.model)
-    #print("ok")
-    #print(baseArgs.model)
-    g_model = pgan.Generator(3,512,32)            #load generator
-    total_stages = int(math.log2(32/4)) + 1
-    for i in range(total_stages-1):
-        g_model.grow_network()
-        g_model.flush_network()
-    g_model = g_model.to(device)
-    target_model = resnet.resnet18().to(device)  #load target model
-    target_model.load_state_dict(torch.load("./train_model/resnet18_cifar10"))#该模型的精度在cifar10验证集上是91.*%
     tr_transformer = transforms.Compose([
 		transforms.RandomCrop(32, padding=4),  #先四周填充0，在吧图像随机裁剪成32*32
 		transforms.RandomHorizontalFlip(),  #图像一半的概率翻转，一半的概率不翻转
@@ -61,15 +44,24 @@ if __name__ == "__main__":
         transform=te_transformer
 	    #target_transform=Lambda(lambda y: torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1))
 	)
-    test_set = DataLoader(test_data, batch_size=128)    #load dataset
-    soft_max = nn.Softmax(dim=1)
-    optimizerG = torch.optim.Adam(g_model.parameters(), lr=1e-4, betas=(0.5,0.999))
-    fixed_noise = torch.FloatTensor(100, 512).normal_(0.0, 1.0).to(device)
-    epoch = 300   
-    for i in range(epoch):   #start   
-        fake = g_model(fixed_noise) 
-        c = correct_cal(result_pre(fake,target_model),t)
-        train_generater(fake,g_model,target_model)
-        if(c>99.9):
-            break
-    my_test(fake,target_model)    #check the label of trigger in target model
+    train_set = DataLoader(training_data, batch_size = 256, shuffle = True)
+    test_set = DataLoader(test_data, batch_size=256)    #load dataset
+    classifier = resnet.resnet18().to(device)
+    loss_fn = nn.CrossEntropyLoss()
+    lr_c = 1e-1
+    optim = torch.optim.SGD(classifier.parameters(), lr_c, momentum=0.9, weight_decay=1e-3)
+    epochs = 120
+    i = 0
+    for t in range(epochs):
+        print(f"Epoch {t + 1}\n-------------------------------")
+        i = i + 1
+        if (i > 50):
+            lr_c = lr_c / 10;
+            print(lr_c)
+            optim = torch.optim.SGD(classifier.parameters(), lr_c, momentum=0.9, weight_decay=1e-3)
+            i = 0;
+        utils.resnet_train(train_set, classifier, loss_fn, optim)
+        utils.resnet_test(test_set, classifier, loss_fn)
+    print("Classifier Done!")
+    torch.save(classifier,'./resnet18_cifar10')
+

@@ -11,8 +11,12 @@ Deep neural networks are vulnerable to malicious fine-tuning attacks such as dat
 
 ## How to use the code
 
-There are two parts:
+There are four parts:
 
-  1.put the model you want to watermark in `./train_model`
+  1.train your classifier  example----->resnet-cifar10     run 'train'
   
-  2.run `train.py`
+  2.generate fragile samples for your classifier        run 'generate_samples'
+
+  3.fine-tuning your classifier with normal training-set or your poison data   run 'eval'
+
+  4.plot the results         run 'plot'
