@@ -7,6 +7,10 @@ from torchvision import datasets
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import torch.nn as nn
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("Using {} device".format(device))
+
 class EqualizedConv2d(nn.Module):
     def __init__(self, in_features, out_features, kernel_size, stride, padding, bias=True):
         super(EqualizedConv2d, self).__init__()
